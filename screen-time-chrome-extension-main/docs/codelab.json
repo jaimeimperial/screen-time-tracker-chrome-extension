@@ -1,0 +1,23 @@
+{
+  "environment": "web",
+  "format": "html",
+  "prefix": "https://storage.googleapis.com",
+  "mainga": "UA-49880327-14",
+  "updated": "2024-03-20T10:05:29-04:00",
+  "id": "usf-gdsc-chrome-extension",
+  "duration": 35,
+  "title": "Screen Time Tracker",
+  "summary": "USF GDSC Chrome extension that keep track of the ammount of time that the user has spent on a website",
+  "source": ".\\screen-time-codelab.md",
+  "theme": "",
+  "status": [
+    "published"
+  ],
+  "category": [
+    "javascript"
+  ],
+  "tags": [
+    "workshop"
+  ],
+  "url": "usf-gdsc-chrome-extension"
+}

@@ -1,0 +1,185 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Screen Time Tracker</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14" ga4id=""></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  codelab-ga4id=""
+                  id="usf-gdsc-chrome-extension"
+                  title="Screen Time Tracker"
+                  environment="web"
+                  feedback-link="">
+    
+      <google-codelab-step label="Quick Introduction Crash Course on Extensions" duration="0">
+        <p><strong>manifest.json:</strong> This JSON file describes the extension&#39;s capabilities and configuration. For example, most manifest files contain an &#34;action&#34; key which declares the image Chrome should use as the extension&#39;s action icon and the HTML page to show in a popup when the extension&#39;s action icon is clicked. ONLY REQUIRED FILE.</p>
+<p><strong>Service workers:</strong> are special JavaScript environments that handle events and terminate when they&#39;re not needed. They allow extensions to monitor browser events in the background.</p>
+<p><strong>Permissions:</strong> are used to specify which resources and capabilities the extension needs to function properly. These permissions control what the extension is allowed to do and access on the user&#39;s behalf.</p>
+<p><strong>Icons:</strong> play a significant role in representing your extension in the browser&#39;s toolbar, menus, and extension management pages. Can be specified in different sizes for various display contexts.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Get Starter Code" duration="0">
+        <p>Head to the link below and fork the repo:</p>
+<p>https://github.com/USFGDSC/screen-time-chrome-extension</p>
+<p>Next clone the forked repository onto your machine onto your machine.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Basic Background logic" duration="20">
+        <p>Create a <strong>background.js file</strong>. Add global variables that will be used throughout rest of program.</p>
+<pre><code>let currentTabId = null;
+let startTime = Date.now();
+</code></pre>
+<p>Then create an alarm for tracking time in active tab every 5 seconds.</p>
+<pre><code>chrome.alarms.create(&#39;trackTime&#39;, { periodInMinutes: 1 / 12 }); // 5 seconds
+</code></pre>
+<p>Next we need to craete a funtion that handles the update current tab time functionality.</p>
+<pre><code>function updateCurrentTabTime() {
+  chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+    if (tabs.length === 0) return; // No active tab
+
+    let tab = tabs[0];
+    if (!tab.url) return; // No URL, likely a new tab or special page
+
+    let url = new URL(tab.url).hostname;
+    let currentTime = Date.now();
+
+    // Check if we&#39;re still on the same tab
+    if (currentTabId === tab.id) {
+      let timeSpent = (currentTime - startTime) / 1000; // Calculate time spent in seconds
+      updateSiteTime(url, timeSpent);
+    }
+
+    // Update the current tab and reset the start time
+    currentTabId = tab.id;
+    startTime = currentTime;
+  });
+}
+</code></pre>
+<p>The following step is to update the site time in storage.</p>
+<pre><code>function updateSiteTime(url, timeSpent) {
+  chrome.storage.local.get({siteTime: {}}, function(data) {
+    let siteTime = data.siteTime;
+    if (siteTime[url]) {
+      siteTime[url] += timeSpent;
+    } else {
+      siteTime[url] = timeSpent;
+    }
+    chrome.storage.local.set({siteTime}, () =&gt; {
+      console.log(&#39;Site time updated&#39;, siteTime);
+    });
+  });
+}
+</code></pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Background Event Listeners" duration="15">
+        <p>First, we need to incorporate event listener that listens for the alarm and then update the time spent on the current site.</p>
+<pre><code>chrome.alarms.onAlarm.addListener((alarm) =&gt; {
+  if (alarm.name === &#39;trackTime&#39;) {
+    updateCurrentTabTime();
+  }
+});
+</code></pre>
+<p>Next, we need to listen for tab activation to handle tab switching.</p>
+<pre><code>chrome.tabs.onActivated.addListener(function(activeInfo) {
+  // Reset start time when switching tabs
+  startTime = Date.now();
+  currentTabId = activeInfo.tabId;
+});
+</code></pre>
+<p>Then, we also need to listen for tab updates to catch navigations in the same tab.</p>
+<pre><code>chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
+  if (tab.active &amp;&amp; changeInfo.url) {
+    let url = new URL(changeInfo.url).hostname;
+    let currentTime = Date.now();
+    let timeSpent = (currentTime - startTime) / 1000;
+    updateSiteTime(url, timeSpent);
+    // Reset the timer for the current tab
+    startTime = currentTime;
+    currentTabId = tabId;
+  }
+});
+</code></pre>
+<p>Finally, we need to incorporate listening for window focus changes to reset the timer appropriately.</p>
+<pre><code>chrome.windows.onFocusChanged.addListener(function(windowId) {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    currentTabId = null; // No window is focused
+  } else {
+    chrome.tabs.query({active: true, windowId: windowId}, function(tabs) {
+      if (tabs.length &gt; 0) {
+        currentTabId = tabs[0].id;
+      }
+    });
+  }
+  startTime = Date.now(); // Reset start time whenever window focus changes
+});
+</code></pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Load Extension" duration="0">
+        <p>To load an unpacked extension in developer mode:</p>
+<ol type="1">
+<li>Go to the Extensions page by entering chrome://extensions in a new tab. (By design chrome:// URLs are not linkable.)</li>
+</ol>
+<p>Alternatively, click the Extensions menu puzzle button and select Manage Extensions at the bottom of the menu.</p>
+<p>Or, click the Chrome menu, hover over More Tools, then select Extensions.</p>
+<ol type="1" start="2">
+<li>Enable Developer Mode by clicking the toggle switch next to Developer mode.</li>
+<li>Click the Load unpacked button and select the extension directory.</li>
+</ol>
+<p>Ta-da! The extension has been successfully installed.</p>
+<p>Now pin it and try it out. If anything does not work as intended check Developer tools for erros and check/modify code. If modidying anything change the name of the extension in <strong>manifest.json</strong> and click the reload icon on the Extensions Page.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Add Changes to Repository" duration="0">
+        <p>Run following terminal commands to upload complete code to your GitHub:</p>
+<pre><code>git add .
+</code></pre>
+<pre><code>git commit -m &#34;finished&#34;
+</code></pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="CONGRATULATIONS! YOU HAVE A FINISHED YOUR EXTENSION!" duration="0">
+        
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>
